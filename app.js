@@ -10,13 +10,11 @@ app.use(bodyParser());
 app.use(router.routes());
 app.use(router.allowedMethods());
 
-const PORT =  3000;
-
 (async () => {
     try {
         await sequelize.authenticate();
-        app.listen(PORT, () => {
-            console.log(`Сервер запущен на порту ${PORT}`);
+        app.listen(3000, () => {
+            console.log(`Сервер запущен на порту 3000`);
         });
     } catch (err) {
         console.error('Ошибка подключения к базе данных:', err);
