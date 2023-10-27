@@ -1,8 +1,10 @@
 const Router = require('koa-router');
 const { User } = require('./db');
 const fs = require('fs');
-const { writeCSV } = require('./fileManager');
+const { writeCSV, generateExcel, stylizeUserTable} = require('./utils');
 const {Op} = require("sequelize");
+const ExcelJS = require("exceljs");
+const send = require('koa-send');
 
 const router = new Router();;
 router.post('/add-user', async (ctx) => {
@@ -17,8 +19,12 @@ router.post('/add-user', async (ctx) => {
 router.get('/get-users-cvs', async (ctx) => {
     try {
         const users = await User.findAll();
-
-        await writeCSV(users, 'file.csv');
+        const matrix = users.map((u) => ({
+            name: u.name,
+            last_name: u.last_name,
+            hobbies: u.hobbies,
+        }));
+        await writeCSV(matrix, 'file.csv');
 
         ctx.attachment('file.csv');
         ctx.type = 'csv';
@@ -48,6 +54,28 @@ router.get('/search-users', async (ctx) => {
         ctx.body = users;
     } catch (e) {
         console.log(e);
+    }
+});
+
+router.get('/generate-excel', async (ctx) => {
+    try {
+        const users = await User.findAll();
+        const matrix = users.map((u) => ({
+            name: u.name,
+            last_name: u.last_name,
+            hobbies: u.hobbies,
+        }));
+
+        const buffer = await generateExcel(matrix, 'Users', stylizeUserTable);
+
+        ctx.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        ctx.set('Content-Disposition', 'attachment; filename=users.xlsx');
+
+        ctx.body = buffer;
+    } catch (error) {
+        console.error(error);
+        ctx.status = 500;
+        ctx.body = 'Server Error';
     }
 });
 
