@@ -29,7 +29,7 @@ router.get('/get-users-cvs', async (ctx) => {
 });
 
 router.get('/search-users', async (ctx) => {
-    const { query } = ctx.request.query;
+    const { query, sortName, sortDir } = ctx.request.query;
 
     try {
         const users = await User.findAll({
@@ -39,7 +39,10 @@ router.get('/search-users', async (ctx) => {
                     { last_name: { [Op.like]: `%${query}%` } },
                     { hobbies: { [Op.overlap]: [query] } }
                 ]
-            }
+            },
+            order: [
+                [sortName || 'name', sortDir || 'ASC'],
+            ]
         });
 
         ctx.body = users;
