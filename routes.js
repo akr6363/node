@@ -2,6 +2,7 @@ const Router = require('koa-router');
 const { User } = require('./db');
 const fs = require('fs');
 const { writeCSV } = require('./fileManager');
+const {Op} = require("sequelize");
 
 const router = new Router();;
 router.post('/add-user', async (ctx) => {
@@ -16,19 +17,34 @@ router.post('/add-user', async (ctx) => {
 router.get('/get-users-cvs', async (ctx) => {
     try {
         const users = await User.findAll();
-        const matrix = users.map((u) => ({
-            name: u.name,
-            last_name: u.last_name,
-            hobbies: u.hobbies,
-        }));
 
-        await writeCSV(matrix, 'file.csv');
+        await writeCSV(users, 'file.csv');
 
         ctx.attachment('file.csv');
         ctx.type = 'csv';
         ctx.body = fs.createReadStream('file.csv');
     } catch (e) {
         ctx.throw(500, 'Произошла ошибка при записи файла CSV');
+    }
+});
+
+router.get('/search-users', async (ctx) => {
+    const { query } = ctx.request.query;
+
+    try {
+        const users = await User.findAll({
+            where: {
+                [Op.or]: [
+                    { name: { [Op.like]: `%${query}%` } },
+                    { last_name: { [Op.like]: `%${query}%` } },
+                    { hobbies: { [Op.overlap]: [query] } }
+                ]
+            }
+        });
+
+        ctx.body = users;
+    } catch (e) {
+        console.log(e);
     }
 });
 
