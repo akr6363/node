@@ -3,8 +3,6 @@ const { User } = require('./db');
 const fs = require('fs');
 const { writeCSV, generateExcel, stylizeUserTable} = require('./utils');
 const {Op} = require("sequelize");
-const ExcelJS = require("exceljs");
-const send = require('koa-send');
 
 const router = new Router();;
 router.post('/add-user', async (ctx) => {
@@ -59,6 +57,7 @@ router.get('/search-users', async (ctx) => {
 
 router.get('/generate-excel', async (ctx) => {
     try {
+        const startTime = performance.now();
         const users = await User.findAll();
         const matrix = users.map((u) => ({
             name: u.name,
@@ -66,16 +65,57 @@ router.get('/generate-excel', async (ctx) => {
             hobbies: u.hobbies,
         }));
 
-        const buffer = await generateExcel(matrix, 'Users', stylizeUserTable);
+        const filePath = './users.xlsx';
+
+        await generateExcel(matrix, 'Users', stylizeUserTable, filePath);
 
         ctx.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         ctx.set('Content-Disposition', 'attachment; filename=users.xlsx');
 
-        ctx.body = buffer;
+
+        ctx.attachment('users.xlsx');
+        ctx.type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        ctx.body = fs.createReadStream(filePath);
+
+        const endTime = performance.now();
+        const executionTime = endTime - startTime;
+
+        console.log(`Время выполнения запроса: ${executionTime} мс`);
     } catch (error) {
         console.error(error);
         ctx.status = 500;
         ctx.body = 'Server Error';
+    }
+});
+
+router.post('/add-many-users', async (ctx) => {
+    const {count} = ctx.request.query;
+
+    const hobbiesList = ['programming', 'reading', 'writing', 'singing', 'dancing', 'cooking', 'playing sports'];
+    const userData = [];
+
+    for (let i = 0; i < count; i++) {
+        userData.push({
+            name: `User-${i}`,
+            last_name: `Lastname-${i}`,
+            hobbies: [hobbiesList[Math.floor(Math.random() * hobbiesList.length)]]
+        });
+    }
+
+    try {
+        await User.bulkCreate(userData);
+        ctx.body = {message: `${count} users have been added successfully.`}
+    } catch (e) {
+        console.log(e);
+    }
+});
+
+router.delete('/delete-all-users', async (ctx) => {
+    try {
+        await User.destroy({where: {}}); // Delete all users
+        ctx.body = {message: 'All users have been deleted successfully.'};
+    } catch (e) {
+        console.log(e);
     }
 });
 
