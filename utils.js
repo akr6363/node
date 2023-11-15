@@ -1,6 +1,6 @@
-const { createObjectCsvWriter } = require('csv-writer');
+const {createObjectCsvWriter} = require('csv-writer');
 const ExcelJS = require("exceljs");
-const {COLUMN_STYLES} = require("./constants");
+const {COLUMN_STYLES, TABLE_HEADERS} = require("./constants");
 
 function writeCSV(data, filePath) {
 
@@ -15,24 +15,31 @@ function writeCSV(data, filePath) {
     return csvWriter.writeRecords(data);
 }
 
-function generateExcel(data, pageName, stylizeFn, filePath) {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(pageName);
+async function generateExcel(data, pageName, filePath, headers, isFirstPage) {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        let worksheet
+        if (isFirstPage) {
+            worksheet = workbook.addWorksheet(pageName);
+            worksheet.addRow(headers.map(h => TABLE_HEADERS[h] ? TABLE_HEADERS[h] : h));
+        } else {
+            await workbook.xlsx.readFile(filePath);
+            worksheet = workbook.getWorksheet(pageName);
+        }
 
-    const headers = Object.keys(data[0]);
-    worksheet.addRow(headers);
+        data.forEach(row => {
+            const values = headers.map(header =>row[header]);
+            worksheet.addRow(values);
+        });
 
-    data.forEach(row => {
-        const values = headers.map(header => JSON.stringify(row[header]));
-        worksheet.addRow(values);
-    });
-
-    stylizeFn(worksheet)
-
-    return workbook.xlsx.writeFile(filePath);
+        await workbook.xlsx.writeFile(filePath);
+    }
+catch (e) {
+    throw e
+}
 }
 
-function stylizeUserTable (table) {
+function stylizeUserTable(table) {
     table.getColumn(1).eachCell((cell) => cell.style = COLUMN_STYLES.blue);
     table.getColumn(2).eachCell((cell) => cell.style = COLUMN_STYLES.red);
     table.getColumn(3).eachCell((cell) => cell.style = COLUMN_STYLES.red);
@@ -44,8 +51,58 @@ function stylizeUserTable (table) {
     });
 }
 
+async function stylizeStopPointsTable(filePath) {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(filePath);
+        const table = workbook.getWorksheet('stop points');
+        const columnWidth = [34, 33, 21, 35, 14];
+
+        const headerStyle = {
+            font: {bold: true, size: 10},
+            alignment: {horizontal: 'center'},
+        };
+
+        columnWidth.forEach((width, index) => {
+            table.getColumn(index + 1).width = width;
+        });
+
+        const headerRow = table.getRow(1)
+
+        headerRow.eachCell((cell) => {
+            cell.style = headerStyle;
+        });
+        const rowCount = table.rowCount
+       // table.getRow(1).height =  19
+        for (let i = 2; i <= rowCount; i++) {
+            // table.getRow(i).height =  35
+            table.getRow(i).eachCell({ includeEmpty: true }, (cell) => {
+                cell.border = {
+                    top: {style: 'medium'},
+                    left: {style: 'medium'},
+                    bottom: {style: 'medium'},
+                    right: {style: 'medium'}
+                };
+                cell.font = {
+                    size: 10,
+                };
+                cell.alignment = {
+                    wrapText: true,
+                };
+            })
+        }
+        await workbook.xlsx.writeFile(filePath);
+    }
+
+    catch (e) {
+        throw e
+    }
+}
+
+
 module.exports = {
     writeCSV,
     generateExcel,
-    stylizeUserTable
+    stylizeUserTable,
+    stylizeStopPointsTable
 };

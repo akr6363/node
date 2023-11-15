@@ -1,14 +1,27 @@
 const Router = require('koa-router');
-const { User } = require('./db');
+const {User} = require('./db');
 const fs = require('fs');
-const { writeCSV, generateExcel, stylizeUserTable} = require('./utils');
+const {writeCSV, generateExcel, stylizeUserTable, stylizeStopPointsTable} = require('./utils');
 const {Op} = require("sequelize");
+const fetch = require('isomorphic-fetch');
+const {SOURCES} = require("./constants");
+const {getStopPoints, getEntityNames} = require("./api");
+const {controller, getStopPointsReport} = require("./controllers/getStopPointsController");
 
-const router = new Router();;
+const router = new Router();
+
 router.post('/add-user', async (ctx) => {
-    const { name, last_name, hobbies } = ctx.request.body;
+    const {name, last_name, hobbies} = ctx.request.body;
     try {
         ctx.body = await User.create({name, last_name, hobbies});
+    } catch (e) {
+        console.log(e);
+    }
+});
+
+router.post('/users', async (ctx) => {
+    try {
+        ctx.body = await User.findAll();
     } catch (e) {
         console.log(e);
     }
@@ -33,15 +46,15 @@ router.get('/get-users-cvs', async (ctx) => {
 });
 
 router.get('/search-users', async (ctx) => {
-    const { query, sortName, sortDir } = ctx.request.query;
+    const {query, sortName, sortDir} = ctx.request.query;
 
     try {
         const users = await User.findAll({
             where: {
                 [Op.or]: [
-                    { name: { [Op.like]: `%${query}%` } },
-                    { last_name: { [Op.like]: `%${query}%` } },
-                    { hobbies: { [Op.overlap]: [query] } }
+                    {name: {[Op.like]: `%${query}%`}},
+                    {last_name: {[Op.like]: `%${query}%`}},
+                    {hobbies: {[Op.overlap]: [query]}}
                 ]
             },
             order: [
@@ -65,9 +78,11 @@ router.get('/generate-excel', async (ctx) => {
             hobbies: u.hobbies,
         }));
 
+        const headers = Object.keys(matrix[0]);
+
         const filePath = './users.xlsx';
 
-        await generateExcel(matrix, 'Users', stylizeUserTable, filePath);
+        await generateExcel(matrix, 'Users', stylizeUserTable, filePath, headers, true);
 
         ctx.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         ctx.set('Content-Disposition', 'attachment; filename=users.xlsx');
@@ -112,11 +127,35 @@ router.post('/add-many-users', async (ctx) => {
 
 router.delete('/delete-all-users', async (ctx) => {
     try {
-        await User.destroy({where: {}}); // Delete all users
+        await User.destroy({where: {}});
         ctx.body = {message: 'All users have been deleted successfully.'};
     } catch (e) {
         console.log(e);
     }
 });
+
+router.post('/get-stop-points', async (ctx) => {
+        const {order, filters, limit} = ctx.request.body;
+        const filePath = './stop-points.xlsx'
+    const startTime = performance.now();
+        try {
+            await getStopPointsReport(order, filters, limit, filePath)
+
+            ctx.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            ctx.set('Content-Disposition', 'attachment; filename=users.xlsx');
+
+            ctx.attachment(filePath);
+            ctx.body = fs.createReadStream(filePath);
+            const endTime = performance.now();
+            const executionTime = endTime - startTime;
+
+            console.log(`Время выполнения запроса: ${executionTime} мс`);
+        } catch (e) {
+            console.log(e);
+            ctx.status = 500;
+            ctx.body = { error: 'An error occurred while generating the stop points report.' };
+        }
+    }
+)
 
 module.exports = router;

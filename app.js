@@ -2,7 +2,7 @@ const Koa = require('koa');
 const bodyParser = require('koa-bodyparser');
 const { sequelize } = require('./db');
 const router = require('./routes');
-const cors = require('koa2-cors');
+const cors = require('koa-cors');
 
 const app = new Koa();
 
@@ -11,7 +11,12 @@ app.use(bodyParser());
 app.use(router.routes());
 app.use(router.allowedMethods());
 
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+}));
+
 (async () => {
     try {
         await sequelize.authenticate();
